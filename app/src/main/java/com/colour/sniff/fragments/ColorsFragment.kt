@@ -6,16 +6,17 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.colour.sniff.R
 import com.colour.sniff.adapter.ColorListAdapter
 import com.colour.sniff.database.ColorViewModel
+import com.colour.sniff.databinding.FragmentColorsBinding
 import com.colour.sniff.dialog.ColorDetailDialog
 import com.colour.sniff.model.UserColor
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import kotlinx.android.synthetic.main.fragment_colors.*
-
 
 class ColorsFragment : BottomSheetDialogFragment() {
+
+    private var _binding: FragmentColorsBinding? = null
+    private val binding get() = _binding!!
 
     private val colorViewModel: ColorViewModel by lazy {
         ViewModelProvider(
@@ -24,13 +25,12 @@ class ColorsFragment : BottomSheetDialogFragment() {
         )[ColorViewModel::class.java]
     }
 
-
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_colors, container, false)
+    ): View {
+        _binding = FragmentColorsBinding.inflate(inflater, container, false)
+        return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -48,14 +48,18 @@ class ColorsFragment : BottomSheetDialogFragment() {
         })
         val layoutManager = LinearLayoutManager(context)
 
-        rv_color_list.layoutManager = layoutManager
-        rv_color_list.setHasFixedSize(true)
+        binding.rvColorList.layoutManager = layoutManager
+        binding.rvColorList.setHasFixedSize(true)
 
-        rv_color_list.adapter = colorListAdapter
+        binding.rvColorList.adapter = colorListAdapter
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 
     private val deleteColor: (UserColor) -> Unit = {
         colorViewModel.deleteColor(it)
     }
-
 }

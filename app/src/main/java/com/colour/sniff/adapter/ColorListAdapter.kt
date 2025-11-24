@@ -41,12 +41,8 @@ class ColorListAdapter(private val context: Context, private val onItemClick: (U
             CoroutineScope(Dispatchers.Main).launch {
                 val color = colors.asFlow().filter { it.name == name }.toList()
                 adapter.notifyData(color)
-
             }
-
         }
-
-
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ColorListViewHolder {

@@ -12,12 +12,9 @@ class ColorDetectHandler {
     private var red = 0
     private var green = 0
     private var blue = 0
-
     private var rgb = 0
     private var hex: String = ""
-
     private var name: String = ""
-
     private var bitmap: Bitmap? = null
 
     private fun reset() {
@@ -31,35 +28,19 @@ class ColorDetectHandler {
 
 
     fun detect(cameraView: PreviewView, pointer: View): UserColor {
-
-        // Reset all variables before to detect new color
         reset()
 
-        // Get the coordinate of pointer
-        // Add half of width and half of height to x and y
-        // to be able to target the center of the pointer
         val x = pointer.x + (pointer.width / 2).toFloat()
         val y = pointer.y + (pointer.height / 2).toFloat()
 
-        // Create a bitmap using camera view
-        // # Note: It is important that bitmap size should
-        // # be equals to or be greater than pointer size
         bitmap = cameraView.bitmap
 
-        // Get the pixel of pointer using its x and y coordinate
         val pixel = bitmap!!.getPixel(x.toInt(), y.toInt())
 
-        // Get RGB - r (red), g (green) and b (blue) - colors of the pixel
         red = Color.red(pixel)
         green = Color.green(pixel)
         blue = Color.blue(pixel)
-
-        // This is the color which can be used to set color of something directly
-        // # Example: set an image view's color
-        // # ImageView.setBackgroundColor(rgb)
         rgb = Color.rgb(red, green, blue)
-
-        // Get hex code of RGB
         hex = Integer.toHexString(rgb and 0x00ffffff)
 
         for (i in 0 until (6 - hex.length))
@@ -82,31 +63,17 @@ class ColorDetectHandler {
         marginLeft: Float,
         ratio: Float
     ): UserColor {
-
-        // Reset data
         reset()
 
-        // Get the coordinate of pointer
-        // Add half of width and half of height to x and y
-        // to be able to target the center of the pointer
         val x = (pointer.x + (pointer.width / 2).toFloat() - marginLeft) * ratio
         val y = (pointer.y + (pointer.height / 2).toFloat() - marginTop) * ratio
-        // Get the pixel of pointer using its x and y coordinate
-
 
         val pixel = bitmap.getPixel(x.toInt(), y.toInt())
 
-        // Get RGB - r (red), g (green) and b (blue) - colors of the pixel
         red = Color.red(pixel)
         green = Color.green(pixel)
         blue = Color.blue(pixel)
-
-        // This is the color which can be used to set color of something directly
-        // # Example: set an image view's color
-        // # ImageView.setBackgroundColor(rgb)
         rgb = Color.rgb(red, green, blue)
-
-        // Get hex code of RGB
         hex = Integer.toHexString(rgb and 0x00ffffff)
         for (i in 0 until (6 - hex.length))
             hex = "0$hex"

@@ -5,8 +5,8 @@ import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
 import com.colour.sniff.R
+import com.colour.sniff.databinding.DialogColorDetailBinding
 import com.colour.sniff.model.UserColor
-import kotlinx.android.synthetic.main.dialog_color_detail.*
 
 class ColorDetailDialog(
     context: Context,
@@ -16,22 +16,21 @@ class ColorDetailDialog(
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.dialog_color_detail)
+        val binding = DialogColorDetailBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         setTitle(context.resources.getString(R.string.your_color))
 
-        view_color_preview.setBackgroundColor(Color.parseColor(color.hex))
+        binding.viewColorPreview.setBackgroundColor(Color.parseColor(color.hex))
 
-        txt_rgb.text = ("RGB(${color.r}, ${color.g}, ${color.b})")
-        txt_hex.text = ("Hex : ${color.hex}")
-        txt_hsl.text = ("HSL(${color.h}, ${color.s}, ${color.l})")
+        binding.txtRgb.text = ("RGB(${color.r}, ${color.g}, ${color.b})")
+        binding.txtHex.text = ("Hex : ${color.hex}")
+        binding.txtHsl.text = ("HSL(${color.h}, ${color.s}, ${color.l})")
 
+        binding.btnCancel.setOnClickListener { dismiss() }
 
-        btn_cancel.setOnClickListener { dismiss() }
-
-        btn_remove_color.setOnClickListener {
+        binding.btnRemoveColor.setOnClickListener {
             onRemove(color)
             dismiss()
         }
-
     }
 }

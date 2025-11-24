@@ -13,8 +13,6 @@ abstract class BaseActivity : AppCompatActivity() {
     }
 
     abstract fun initControls(savedInstanceState: Bundle?)
-
     abstract fun initEvents()
-
     abstract fun getLayoutId(): Int
 }

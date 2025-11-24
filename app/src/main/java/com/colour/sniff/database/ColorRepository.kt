@@ -18,5 +18,4 @@ class ColorRepository(application: Application) {
     fun getAllColor(): LiveData<List<UserColor>> {
         return colorDao.getAllColor()
     }
-
 }
