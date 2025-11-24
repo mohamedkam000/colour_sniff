@@ -7,13 +7,13 @@ import com.google.android.material.card.MaterialCardView
 
 class ColorCardView(context: Context) : MaterialCardView(context) {
 
-    private var size = context.resources.getDimensionPixelSize(R.dimen._15sdp)
+    private var size = context.resources.getDimensionPixelSize(R.dimen._15dp)
     private var cardRadius = size / 2f
     private var cardLayoutParams = LinearLayout.LayoutParams(size, size)
 
 
     init {
-        cardLayoutParams.marginStart = context.resources.getDimensionPixelSize(R.dimen._5sdp)
+        cardLayoutParams.marginStart = context.resources.getDimensionPixelSize(R.dimen._5dp)
         this.layoutParams = cardLayoutParams
         this.radius = cardRadius
     }

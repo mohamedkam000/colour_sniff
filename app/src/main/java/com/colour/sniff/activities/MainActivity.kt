@@ -38,6 +38,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import android.util.Log
 
 class MainActivity : BaseActivity() {
 
@@ -164,7 +165,7 @@ class MainActivity : BaseActivity() {
             val preview = Preview.Builder()
                 .build()
                 .also {
-                    it.setSurfaceProvider(binding.cameraPreview.createSurfaceProvider())
+                    it.setSurfaceProvider(binding.cameraPreview.surfaceProvider)
                 }
 
             timerTask = CoroutineScope(Dispatchers.Default).timer(1000) {
@@ -207,7 +208,7 @@ class MainActivity : BaseActivity() {
         binding.pointer.x = x
         binding.pointer.y = y
 
-        val marginBottom = this.resources.getDimension(R.dimen._20sdp)
+        val marginBottom = this.resources.getDimension(R.dimen._20dp)
         binding.cardColorPreview.y = y - marginBottom - binding.pointer.height
 
         val cardColorPreviewX = when {

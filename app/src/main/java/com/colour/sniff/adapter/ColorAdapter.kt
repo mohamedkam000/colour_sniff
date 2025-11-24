@@ -30,7 +30,7 @@ class ColorAdapter(
         val cardView = ColorCardView(context)
 
         if (geometry == Geometry.SQUARE) {
-            val size = context.resources.getDimensionPixelSize(R.dimen._24sdp)
+            val size = context.resources.getDimensionPixelSize(R.dimen._24dp)
             cardView.setCardSize(size)
             cardView.radius = 0f
         }
