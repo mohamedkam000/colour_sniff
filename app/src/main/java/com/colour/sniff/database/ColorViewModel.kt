@@ -1,12 +1,8 @@
 package com.colour.sniff.database
 
 import android.app.Application
-import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.CreationExtras
-import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.*
+import androidx.lifecycle.viewmodel.*
 import com.colour.sniff.model.UserColor
 import kotlinx.coroutines.launch
 
