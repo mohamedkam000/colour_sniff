@@ -34,7 +34,7 @@ class ColorListAdapter(private val context: Context, private val onItemClick: (U
             val layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
             val adapter = ColorAdapter(context, ColorAdapter.Geometry.SQUARE, onItemClick)
             rvColor.layoutManager = layoutManager
-            rvColor.setHasFixedSize(true)
+//            rvColor.setHasFixedSize(true)
             rvColor.adapter = adapter
             rvColor.setRecycledViewPool(viewPool)
 
