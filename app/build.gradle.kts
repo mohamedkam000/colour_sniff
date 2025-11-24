@@ -58,23 +58,23 @@ android {
 }
 
 dependencies {
-//    implementation fileTree(dir: "libs", include: ["*.jar"])
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:2.3.0-Beta2"
-    implementation "androidx.core:core-ktx:1.17.0"
-    implementation "androidx.appcompat:appcompat:1.7.0-alpha03"
-    implementation "androidx.constraintlayout:constraintlayout:2.2.0-alpha02"
-    implementation "androidx.legacy:legacy-support-v4:1.0.0"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0-RC"
-    implementation "com.intuit.sdp:sdp-android:1.0.6"
-    implementation "com.google.android.material:material:1.10.0-alpha03"
-    implementation "androidx.room:room-runtime:2.8.0-alpha01"
-    kapt "androidx.room:room-compiler:2.8.0-alpha01"
-    implementation "androidx.room:room-ktx:2.8.0-alpha01"
-    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0-alpha03"
-    implementation "androidx.lifecycle:lifecycle-livedata-ktx:2.10.0-alpha03"
-    implementation "androidx.lifecycle:lifecycle-common-java8:2.10.0-alpha03"
-    implementation "androidx.camera:camera-camera2:1.6.0-alpha01"
-    implementation "androidx.camera:camera-lifecycle:1.6.0-alpha01"
-    implementation "androidx.camera:camera-view:1.6.0-alpha01"
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:2.3.0-Beta2")
+    implementation("androidx.core:core-ktx:1.17.0")
+    implementation("androidx.appcompat:appcompat:1.7.0-alpha03")
+    implementation("androidx.constraintlayout:constraintlayout:2.2.0-alpha02")
+    implementation("androidx.legacy:legacy-support-v4:1.0.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0-RC")
+    implementation("com.intuit.sdp:sdp-android:1.0.6")
+    implementation("com.google.android.material:material:1.10.0-alpha03")
+    implementation("androidx.room:room-runtime:2.8.0-alpha01")
+    kapt("androidx.room:room-compiler:2.8.0-alpha01")
+    implementation("androidx.room:room-ktx:2.8.0-alpha01")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0-alpha03")
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.10.0-alpha03")
+    implementation("androidx.lifecycle:lifecycle-common-java8:2.10.0-alpha03")
+    implementation("androidx.camera:camera-camera2:1.6.0-alpha01")
+    implementation("androidx.camera:camera-lifecycle:1.6.0-alpha01")
+    implementation("androidx.camera:camera-view:1.6.0-alpha01")
 }
