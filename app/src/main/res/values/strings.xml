@@ -1,0 +1,9 @@
+<resources>
+    <string name="color_default">#000000</string>
+    <string name="dialog_color_title">What is your colour list names?</string>
+    <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
+    <string name="unknown_color">Unknown Colour</string>
+    <string name="your_color">Your Colour</string>
+    <string name="remove">Remove</string>
+</resources>
