@@ -69,7 +69,7 @@ dependencies {
     implementation("com.intuit.sdp:sdp-android:1.0.6")
     implementation("com.google.android.material:material:1.10.0-alpha03")
     implementation("androidx.room:room-runtime:2.8.0-alpha01")
-    kapt("androidx.room:room-compiler:2.8.0-alpha01")
+    ksp("androidx.room:room-compiler:2.8.0-alpha01")
     implementation("androidx.room:room-ktx:2.8.0-alpha01")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0-alpha03")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.10.0-alpha03")
