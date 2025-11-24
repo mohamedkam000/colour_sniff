@@ -208,7 +208,7 @@ class MainActivity : BaseActivity() {
         binding.pointer.x = x
         binding.pointer.y = y
 
-        val marginBottom = this.resources.getDimension(R.dimen._20dp)
+        val marginBottom = 20 * resources.displayMetrics.density
         binding.cardColorPreview.y = y - marginBottom - binding.pointer.height
 
         val cardColorPreviewX = when {
