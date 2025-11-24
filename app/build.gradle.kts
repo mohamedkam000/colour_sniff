@@ -76,5 +76,5 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-common-java8:2.10.0-alpha03")
     implementation("androidx.camera:camera-camera2:1.6.0-alpha01")
     implementation("androidx.camera:camera-lifecycle:1.6.0-alpha01")
-    implementation("androidx.camera:camera-view:1.6.0-alpha01")
+    implementation("androidx.camera:camera-view:1.14.0-alpha07")
 }
