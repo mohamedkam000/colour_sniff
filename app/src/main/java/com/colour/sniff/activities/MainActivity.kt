@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.ImageFormat
 import android.graphics.Rect
@@ -13,11 +14,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
@@ -176,7 +175,7 @@ class MainActivity : BaseActivity() {
                     val sampledColor = sampledBitmap.getPixel(0, 0)
                     val hex = String.format("#%06X", 0xFFFFFF and sampledColor)
                     currentColor.hex = hex
-                    withContext(Dispatchers.Main) {
+                    runOnUiThread {
                         binding.txtHex.text = currentColor.hex
                         binding.cardColor.setCardBackgroundColor(Color.parseColor(currentColor.hex))
                     }
@@ -303,6 +302,11 @@ class MainActivity : BaseActivity() {
                 binding.cardColor.setCardBackgroundColor(Color.parseColor(currentColor.hex))
             }
         }
+    }
+
+    private fun setPointerCoordinates(x: Float, y: Float) {
+        binding.pointer.x = x
+        binding.pointer.y = y
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {

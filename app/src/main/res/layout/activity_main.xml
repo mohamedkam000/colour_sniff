@@ -203,6 +203,18 @@
             app:tint="@color/colorPrimary" />
 
         <ImageView
+            android:id="@+id/btn_capture"
+            android:layout_width="@dimen/_24sdp"
+            android:layout_height="@dimen/_24sdp"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_baseline_camera"
+            android:visibility="invisible"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/btn_change_camera"
+            app:layout_constraintStart_toEndOf="@+id/btn_pick_image"
+            app:layout_constraintTop_toTopOf="@+id/guideline_bottom2" />
+
+        <ImageView
             android:id="@+id/btn_change_camera"
             android:layout_width="@dimen/_24sdp"
             android:layout_height="@dimen/_24sdp"
@@ -215,6 +227,5 @@
             app:layout_constraintTop_toTopOf="@+id/guideline_bottom2"
             app:tint="@color/colorPrimary" />
     </androidx.constraintlayout.widget.ConstraintLayout>
-
 
 </androidx.constraintlayout.widget.ConstraintLayout>
