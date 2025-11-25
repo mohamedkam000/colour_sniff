@@ -10,6 +10,7 @@ import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -45,8 +46,11 @@ class MainActivity : BaseActivity() {
     companion object {
         private const val TAG = "CameraXBasic"
         private const val REQUEST_CODE_PERMISSIONS = 26
-        private val REQUIRED_PERMISSIONS =
+        private val REQUIRED_PERMISSIONS = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            arrayOf(Manifest.permission.CAMERA, Manifest.permission.READ_MEDIA_IMAGES)
+        } else {
             arrayOf(Manifest.permission.CAMERA, Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
         private const val REQUEST_CODE = 112
     }
 
