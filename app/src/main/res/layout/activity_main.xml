@@ -42,6 +42,15 @@
             android:visibility="gone"
             app:tint="@color/colorPrimary" />
 
+        <TextView
+            android:id="@+id/txt_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:text="مصطفى عبد القادر محمد عيسى"
+            android:textColor="@color/colorPrimary"
+            android:textSize="@dimen/_14sdp" />
+
         <ImageView
             android:id="@+id/btn_show_colors"
             android:layout_width="@dimen/_24sdp"
@@ -53,7 +62,6 @@
             app:tint="@color/colorPrimary" />
 
     </RelativeLayout>
-
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/card_color_preview"
@@ -173,7 +181,6 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             app:layout_constraintGuide_percent="0.3" />
-
 
         <ImageView
             android:id="@+id/btn_pick_image"
