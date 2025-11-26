@@ -3,12 +3,12 @@ package com.colour.sniff.activities
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Rect
-import android.graphics.drawable.GradientDrawable
+import android.graphics.ImageFormat
+import android.graphics.YuvImage
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -16,12 +16,12 @@ import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
@@ -36,13 +36,11 @@ import androidx.constraintlayout.widget.ConstraintSet
 import androidx.constraintlayout.widget.Guideline
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.view.setMargins
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.colour.sniff.R
 import com.colour.sniff.adapter.ColorAdapter
-import com.colour.sniff.base.BaseActivity
 import com.colour.sniff.database.ColorViewModel
 import com.colour.sniff.dialog.ColorDetailDialog
 import com.colour.sniff.dialog.ColorDialog
@@ -55,10 +53,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-class MainActivity : BaseActivity() {
+class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "CameraXBasic"
@@ -98,7 +97,7 @@ class MainActivity : BaseActivity() {
     private var currentColor = UserColor()
     private var isImageShown = false
     private var currentColorList: MutableList<UserColor> = mutableListOf()
-    
+
     private val colorAdapter: ColorAdapter by lazy {
         ColorAdapter(this) {
             val detailDialog = ColorDetailDialog(this, it, removeColorInList)
@@ -115,14 +114,12 @@ class MainActivity : BaseActivity() {
         )[ColorViewModel::class.java]
     }
 
-    override fun getLayoutId(): Int = 0
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setupProgrammaticUI()
         setContentView(rootLayout)
-        
-        initControls(savedInstanceState)
+
+        initControls()
         initEvents()
     }
 
@@ -141,7 +138,7 @@ class MainActivity : BaseActivity() {
         val guidelineTop = Guideline(this).apply {
             id = View.generateViewId()
             layoutParams = ConstraintLayout.LayoutParams(ConstraintLayout.LayoutParams.WRAP_CONTENT, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
-                orientation = ConstraintLayout.LayoutParams.VERTICAL 
+                orientation = ConstraintLayout.LayoutParams.VERTICAL
             }
         }
         val lpGuidelineTop = ConstraintLayout.LayoutParams(ConstraintLayout.LayoutParams.WRAP_CONTENT, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
@@ -174,7 +171,7 @@ class MainActivity : BaseActivity() {
             id = View.generateViewId()
             text = "مصطفى عبد القادر محمد عيسى"
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.colorPrimary))
-            textSize = 14f 
+            textSize = 14f
         }
         val txtNameParams = RelativeLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             addRule(RelativeLayout.CENTER_IN_PARENT)
@@ -202,14 +199,14 @@ class MainActivity : BaseActivity() {
             id = View.generateViewId()
             radius = dpToPx(5).toFloat()
         }
-        
+
         val linearLayoutColor = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             setBackgroundColor(Color.WHITE)
             setPadding(dpToPx(2), 0, dpToPx(2), 0)
         }
-        
+
         cardColor = CardView(this).apply {
             id = View.generateViewId()
             radius = dpToPx(8).toFloat()
@@ -227,7 +224,7 @@ class MainActivity : BaseActivity() {
         }
         val txtHexParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         linearLayoutColor.addView(txtHex, txtHexParams)
-        
+
         cardColorPreview.addView(linearLayoutColor, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         rootLayout.addView(cardColorPreview)
 
@@ -345,12 +342,12 @@ class MainActivity : BaseActivity() {
         set.connect(bottomContainer.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
         set.connect(bottomContainer.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
         set.constrainHeight(bottomContainer.id, 0)
-        
+
         set.applyTo(rootLayout)
 
         val bottomSet = ConstraintSet()
         bottomSet.clone(bottomContainer)
-        
+
         bottomSet.connect(btnAddListColor.id, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
         bottomSet.connect(btnAddListColor.id, ConstraintSet.BOTTOM, guidelineBottom2.id, ConstraintSet.TOP)
         bottomSet.connect(btnAddListColor.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
@@ -407,7 +404,7 @@ class MainActivity : BaseActivity() {
         return (dp * density).toInt()
     }
 
-    override fun initControls(savedInstanceState: Bundle?) {
+    private fun initControls() {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         rvColor.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
@@ -421,7 +418,7 @@ class MainActivity : BaseActivity() {
         }
     }
 
-    override fun initEvents() {
+    private fun initEvents() {
         btnPickColor.setOnClickListener {
             addColor()
         }
@@ -450,7 +447,7 @@ class MainActivity : BaseActivity() {
             }
         }
         layoutTop.setOnClickListener {
-             showBottomSheetFragment()
+            showBottomSheetFragment()
         }
         btnCapture.setOnClickListener {
             takePictureAndProcess()
@@ -506,7 +503,7 @@ class MainActivity : BaseActivity() {
 
     private fun processImageProxy(imageProxy: ImageProxy) {
         try {
-            if (imageProxy.format == android.graphics.ImageFormat.YUV_420_888) {
+            if (imageProxy.format == ImageFormat.YUV_420_888) {
                 val bitmap = imageProxyToBitmap(imageProxy)
                 if (bitmap != null) {
                     processBitmapCenter(bitmap)
@@ -516,26 +513,25 @@ class MainActivity : BaseActivity() {
                 val buffer = planes[0].buffer
                 val pixelStride = planes[0].pixelStride
                 val rowStride = planes[0].rowStride
-                val rowPadding = rowStride - pixelStride * imageProxy.width
-                
+
                 val width = imageProxy.width
                 val height = imageProxy.height
-                
+
                 val centerX = width / 2
                 val centerY = height / 2
-                
+
                 val offset = (centerY * rowStride) + (centerX * pixelStride)
-                
+
                 if (offset + 3 < buffer.capacity()) {
-                     val r = buffer.get(offset).toInt() and 0xFF
-                     val g = buffer.get(offset + 1).toInt() and 0xFF
-                     val b = buffer.get(offset + 2).toInt() and 0xFF
-                     val a = buffer.get(offset + 3).toInt() and 0xFF
-                     
-                     val color = Color.argb(a, r, g, b)
-                     val hex = String.format("#%06X", 0xFFFFFF and color)
-                     
-                     updateColorUI(hex)
+                    val r = buffer.get(offset).toInt() and 0xFF
+                    val g = buffer.get(offset + 1).toInt() and 0xFF
+                    val b = buffer.get(offset + 2).toInt() and 0xFF
+                    val a = buffer.get(offset + 3).toInt() and 0xFF
+
+                    val color = Color.argb(a, r, g, b)
+                    val hex = String.format("#%06X", 0xFFFFFF and color)
+
+                    updateColorUI(hex)
                 }
             }
         } catch (e: Exception) {
@@ -544,17 +540,17 @@ class MainActivity : BaseActivity() {
             imageProxy.close()
         }
     }
-    
+
     private fun updateColorUI(hex: String) {
-         currentColor.hex = hex
-         runOnUiThread {
-             txtHex.text = currentColor.hex
-             cardColor.setCardBackgroundColor(Color.parseColor(currentColor.hex))
-         }
+        currentColor.hex = hex
+        runOnUiThread {
+            txtHex.text = currentColor.hex
+            cardColor.setCardBackgroundColor(Color.parseColor(currentColor.hex))
+        }
     }
 
     private fun processBitmapCenter(bitmap: Bitmap) {
-         try {
+        try {
             val pointerX = (pointer.x + pointer.width / 2f).toInt().coerceIn(0, bitmap.width - 1)
             val pointerY = (pointer.y + pointer.height / 2f).toInt().coerceIn(0, bitmap.height - 1)
             val sampledColor = bitmap.getPixel(pointerX, pointerY)
@@ -577,8 +573,8 @@ class MainActivity : BaseActivity() {
             yBuffer.get(nv21, 0, ySize)
             vBuffer.get(nv21, ySize, vSize)
             uBuffer.get(nv21, ySize + vSize, uSize)
-            val yuvImage = android.graphics.YuvImage(nv21, android.graphics.ImageFormat.NV21, image.width, image.height, null)
-            val out = java.io.ByteArrayOutputStream()
+            val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
+            val out = ByteArrayOutputStream()
             yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 90, out)
             val bytes = out.toByteArray()
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
@@ -592,24 +588,25 @@ class MainActivity : BaseActivity() {
         val capture = imageCapture ?: return
         capture.takePicture(ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(imageProxy: ImageProxy) {
-                if(imageProxy.format == android.graphics.ImageFormat.JPEG) {
-                     val buffer = imageProxy.planes[0].buffer
-                     val bytes = ByteArray(buffer.remaining())
-                     buffer.get(bytes)
-                     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                     processCapturedBitmap(bitmap)
+                if (imageProxy.format == ImageFormat.JPEG) {
+                    val buffer = imageProxy.planes[0].buffer
+                    val bytes = ByteArray(buffer.remaining())
+                    buffer.get(bytes)
+                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    processCapturedBitmap(bitmap)
                 } else {
-                     val bitmap = imageProxyToBitmap(imageProxy)
-                     if(bitmap != null) processCapturedBitmap(bitmap)
+                    val bitmap = imageProxyToBitmap(imageProxy)
+                    if (bitmap != null) processCapturedBitmap(bitmap)
                 }
                 imageProxy.close()
             }
+
             override fun onError(exception: ImageCaptureException) {
                 Log.e(TAG, "Image capture failed", exception)
             }
         })
     }
-    
+
     private fun processCapturedBitmap(bitmap: Bitmap) {
         CoroutineScope(Dispatchers.Default).launch {
             val centerX = bitmap.width / 2
@@ -645,7 +642,7 @@ class MainActivity : BaseActivity() {
                 val uri = data.data!!
                 imageView.setImageURI(uri)
                 val bitmap = decodeUriToBitmap(uri)
-                if(bitmap != null) startDetectColorFromImage(bitmap)
+                if (bitmap != null) startDetectColorFromImage(bitmap)
             }
         }
     }
@@ -668,21 +665,21 @@ class MainActivity : BaseActivity() {
         } else {
             marginLeft += (imageView.width - bitmap.width / ratio) / 2
         }
-        
+
         timerTask = CoroutineScope(Dispatchers.Default).launch {
-             while(true) {
+            while (true) {
                 try {
-                     currentColor = colorDetectHandler.detect(bitmap, pointer, marginTop, marginLeft, ratio)
-                     Log.d(TAG, "Color : ${currentColor.hex}")
-                     withContext(Dispatchers.Main) {
+                    currentColor = colorDetectHandler.detect(bitmap, pointer, marginTop, marginLeft, ratio)
+                    Log.d(TAG, "Color : ${currentColor.hex}")
+                    withContext(Dispatchers.Main) {
                         txtHex.text = currentColor.hex
                         cardColor.setCardBackgroundColor(Color.parseColor(currentColor.hex))
-                     }
-                } catch(e: Exception) {
+                    }
+                } catch (e: Exception) {
                     Log.e(TAG, "Error detecting from image", e)
                 }
-                delay(1000) 
-             }
+                delay(1000)
+            }
         }
     }
 
