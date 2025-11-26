@@ -1,21 +1,27 @@
 package com.colour.sniff.activities
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Color as AndroidColor
-import android.graphics.Matrix
+import android.graphics.Color
+import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.RelativeLayout
+import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
@@ -24,58 +30,18 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Card
-import androidx.compose.material.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.cardview.widget.CardView
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.constraintlayout.widget.ConstraintSet
+import androidx.constraintlayout.widget.Guideline
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.setMargins
 import androidx.lifecycle.ViewModelProvider
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.colour.sniff.R
+import com.colour.sniff.adapter.ColorAdapter
 import com.colour.sniff.base.BaseActivity
 import com.colour.sniff.database.ColorViewModel
 import com.colour.sniff.dialog.ColorDetailDialog
@@ -83,17 +49,65 @@ import com.colour.sniff.dialog.ColorDialog
 import com.colour.sniff.fragments.ColorsFragment
 import com.colour.sniff.handler.ColorDetectHandler
 import com.colour.sniff.model.UserColor
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.nio.ByteBuffer
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import kotlin.math.roundToInt
 
 class MainActivity : BaseActivity() {
 
+    companion object {
+        private const val TAG = "CameraXBasic"
+        private const val REQUEST_CODE_PERMISSIONS = 26
+        private val REQUIRED_PERMISSIONS = mutableListOf<String>().apply {
+            add(Manifest.permission.CAMERA)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.READ_MEDIA_IMAGES)
+            else add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+        }.toTypedArray()
+        private const val REQUEST_CODE = 112
+    }
+
+    private lateinit var rootLayout: ConstraintLayout
+    private lateinit var cameraPreview: PreviewView
+    private lateinit var txtHex: TextView
+    private lateinit var cardColor: CardView
+    private lateinit var pointer: View
+    private lateinit var rvColor: RecyclerView
+    private lateinit var btnPickImage: ImageView
+    private lateinit var btnPickColor: ImageView
+    private lateinit var btnChangeCamera: ImageView
+    private lateinit var btnCapture: ImageView
+    private lateinit var btnShowCamera: ImageView
+    private lateinit var btnAddListColor: ImageView
+    private lateinit var imageView: ImageView
+    private lateinit var layoutTop: RelativeLayout
+
+    private lateinit var cameraExecutor: ExecutorService
+    private var cameraProvider: ProcessCameraProvider? = null
+    private var isBackCamera = true
+    private var cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+    private var imageCapture: ImageCapture? = null
+    private var imageAnalyzerUseCase: ImageAnalysis? = null
     private val colorDetectHandler = ColorDetectHandler()
+    private var timerTask: Job? = null
+    private var currentColor = UserColor()
+    private var isImageShown = false
+    private var currentColorList: MutableList<UserColor> = mutableListOf()
+    
+    private val colorAdapter: ColorAdapter by lazy {
+        ColorAdapter(this) {
+            val detailDialog = ColorDetailDialog(this, it, removeColorInList)
+            detailDialog.show()
+        }
+    }
+    private val colorsFragment: ColorsFragment by lazy {
+        ColorsFragment()
+    }
     private val colorViewModel: ColorViewModel by lazy {
         ViewModelProvider(
             this,
@@ -101,408 +115,641 @@ class MainActivity : BaseActivity() {
         )[ColorViewModel::class.java]
     }
 
+    override fun getLayoutId(): Int = 0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            ColorSniffApp()
-        }
-    }
-
-    override fun getLayoutId(): Int = 0 
-    override fun initControls(savedInstanceState: Bundle?) {}
-    override fun initEvents() {}
-
-    @Composable
-    fun ColorSniffApp() {
-        val context = LocalContext.current
-        val lifecycleOwner = LocalLifecycleOwner.current
-        val scope = rememberCoroutineScope()
-
-        var hasPermission by remember { mutableStateOf(checkPermissions(context)) }
-        var isBackCamera by remember { mutableStateOf(true) }
-        var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
-        var currentHex by remember { mutableStateOf("#FFFFFF") }
-        val colorList = remember { mutableStateListOf<UserColor>() }
+        setupProgrammaticUI()
+        setContentView(rootLayout)
         
-        var selectedImageBitmap by remember { mutableStateOf<Bitmap?>(null) }
-        var isImageMode by remember { mutableStateOf(false) }
+        initControls(savedInstanceState)
+        initEvents()
+    }
+
+    private fun setupProgrammaticUI() {
+        rootLayout = ConstraintLayout(this).apply {
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            keepScreenOn = true
+        }
+
+        cameraPreview = PreviewView(this).apply {
+            id = View.generateViewId()
+            layoutParams = ConstraintLayout.LayoutParams(0, 0)
+        }
+        rootLayout.addView(cameraPreview)
+
+        val guidelineTop = Guideline(this).apply {
+            id = View.generateViewId()
+            layoutParams = ConstraintLayout.LayoutParams(ConstraintLayout.LayoutParams.WRAP_CONTENT, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
+                orientation = ConstraintLayout.LayoutParams.VERTICAL 
+            }
+        }
+        val lpGuidelineTop = ConstraintLayout.LayoutParams(ConstraintLayout.LayoutParams.WRAP_CONTENT, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
+            orientation = ConstraintLayout.LayoutParams.HORIZONTAL
+            guidePercent = 0.08f
+        }
+        guidelineTop.layoutParams = lpGuidelineTop
+        rootLayout.addView(guidelineTop)
+
+        layoutTop = RelativeLayout(this).apply {
+            id = View.generateViewId()
+            setBackgroundColor(Color.WHITE)
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        rootLayout.addView(layoutTop)
+
+        btnShowCamera = ImageView(this).apply {
+            id = View.generateViewId()
+            setImageResource(R.drawable.ic_baseline_camera_enhance)
+            visibility = View.GONE
+            setColorFilter(ContextCompat.getColor(this@MainActivity, R.color.colorPrimary))
+        }
+        val btnShowCameraParams = RelativeLayout.LayoutParams(dpToPx(24), dpToPx(24)).apply {
+            addRule(RelativeLayout.ALIGN_PARENT_START)
+            marginStart = dpToPx(10)
+        }
+        layoutTop.addView(btnShowCamera, btnShowCameraParams)
+
+        val txtName = TextView(this).apply {
+            id = View.generateViewId()
+            text = "مصطفى عبد القادر محمد عيسى"
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.colorPrimary))
+            textSize = 14f 
+        }
+        val txtNameParams = RelativeLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            addRule(RelativeLayout.CENTER_IN_PARENT)
+        }
+        layoutTop.addView(txtName, txtNameParams)
+
+        val btnShowColors = ImageView(this).apply {
+            id = View.generateViewId()
+            setImageResource(R.drawable.ic_baseline_done)
+            setColorFilter(ContextCompat.getColor(this@MainActivity, R.color.colorPrimary))
+        }
+        val btnShowColorsParams = RelativeLayout.LayoutParams(dpToPx(24), dpToPx(24)).apply {
+            addRule(RelativeLayout.ALIGN_PARENT_END)
+            marginEnd = dpToPx(10)
+        }
+        layoutTop.addView(btnShowColors, btnShowColorsParams)
+
+        pointer = View(this).apply {
+            id = View.generateViewId()
+            setBackgroundResource(R.drawable.pointer)
+        }
+        rootLayout.addView(pointer)
+
+        val cardColorPreview = CardView(this).apply {
+            id = View.generateViewId()
+            radius = dpToPx(5).toFloat()
+        }
         
-        val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+        val linearLayoutColor = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.WHITE)
+            setPadding(dpToPx(2), 0, dpToPx(2), 0)
+        }
         
-        val galleryLauncher = rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.StartActivityForResult()
-        ) { result ->
-            if (result.resultCode == RESULT_OK) {
-                result.data?.data?.let { uri ->
-                    val bitmap = decodeUriToBitmap(context, uri)
-                    selectedImageBitmap = bitmap
-                    isImageMode = true
-                }
+        cardColor = CardView(this).apply {
+            id = View.generateViewId()
+            radius = dpToPx(8).toFloat()
+            setCardBackgroundColor(Color.WHITE)
+        }
+        val cardColorParams = LinearLayout.LayoutParams(dpToPx(15), dpToPx(15))
+        linearLayoutColor.addView(cardColor, cardColorParams)
+
+        txtHex = TextView(this).apply {
+            id = View.generateViewId()
+            text = getString(R.string.color_default)
+            gravity = Gravity.CENTER
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.textColor))
+            textSize = 10f
+        }
+        val txtHexParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        linearLayoutColor.addView(txtHex, txtHexParams)
+        
+        cardColorPreview.addView(linearLayoutColor, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        rootLayout.addView(cardColorPreview)
+
+        imageView = ImageView(this).apply {
+            id = View.generateViewId()
+            visibility = View.VISIBLE
+        }
+        rootLayout.addView(imageView)
+
+        val guidelineBottom1 = Guideline(this).apply {
+            id = View.generateViewId()
+            layoutParams = ConstraintLayout.LayoutParams(ConstraintLayout.LayoutParams.WRAP_CONTENT, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
+                orientation = ConstraintLayout.LayoutParams.HORIZONTAL
+                guidePercent = 0.8f
             }
         }
+        rootLayout.addView(guidelineBottom1)
 
-        val permissionLauncher = rememberLauncherForActivityResult(
-            ActivityResultContracts.RequestMultiplePermissions()
-        ) { permissions ->
-            hasPermission = permissions.values.all { it }
+        val bottomContainer = ConstraintLayout(this).apply {
+            id = View.generateViewId()
+            setBackgroundColor(Color.WHITE)
         }
+        rootLayout.addView(bottomContainer)
 
-        LaunchedEffect(Unit) {
-            if (!hasPermission) {
-                permissionLauncher.launch(REQUIRED_PERMISSIONS)
+        val guidelineBottom2 = Guideline(this).apply {
+            id = View.generateViewId()
+            layoutParams = ConstraintLayout.LayoutParams(ConstraintLayout.LayoutParams.WRAP_CONTENT, ConstraintLayout.LayoutParams.WRAP_CONTENT).apply {
+                orientation = ConstraintLayout.LayoutParams.HORIZONTAL
+                guidePercent = 0.3f
             }
         }
+        bottomContainer.addView(guidelineBottom2)
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            if (hasPermission && !isImageMode) {
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-                    factory = { ctx ->
-                        PreviewView(ctx).apply {
-                            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                            scaleType = PreviewView.ScaleType.FILL_CENTER
-                        }
-                    },
-                    update = { previewView ->
-                        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-                        cameraProviderFuture.addListener({
-                            val cameraProvider = cameraProviderFuture.get()
-                            val preview = Preview.Builder().build()
-                            preview.setSurfaceProvider(previewView.surfaceProvider)
+        btnAddListColor = ImageView(this).apply {
+            id = View.generateViewId()
+            setImageResource(R.drawable.ic_plus)
+            setColorFilter(ContextCompat.getColor(this@MainActivity, R.color.colorPrimary))
+        }
+        bottomContainer.addView(btnAddListColor)
 
-                            val cameraSelector = if (isBackCamera) 
-                                CameraSelector.DEFAULT_BACK_CAMERA 
-                            else 
-                                CameraSelector.DEFAULT_FRONT_CAMERA
+        rvColor = RecyclerView(this).apply {
+            id = View.generateViewId()
+        }
+        bottomContainer.addView(rvColor)
 
-                            val analyzer = ImageAnalysis.Builder()
-                                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-                                .build()
+        btnPickImage = ImageView(this).apply {
+            id = View.generateViewId()
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            setImageResource(R.drawable.ic_images_outline)
+            setColorFilter(ContextCompat.getColor(this@MainActivity, R.color.colorPrimary))
+        }
+        bottomContainer.addView(btnPickImage)
 
-                            analyzer.setAnalyzer(cameraExecutor) { imageProxy ->
-                                val rotation = imageProxy.imageInfo.rotationDegrees
-                                val buffer = imageProxy.planes[0].buffer
-                                val width = imageProxy.width
-                                val height = imageProxy.height
-                                
-                                val pixelStride = imageProxy.planes[0].pixelStride
-                                val rowStride = imageProxy.planes[0].rowStride
-                                
-                                val centerX = width / 2
-                                val centerY = height / 2
-                                
-                                val offset = (centerY * rowStride) + (centerX * pixelStride)
-                                
-                                if (offset + 3 < buffer.capacity()) {
-                                    val r = buffer.get(offset).toInt() and 0xFF
-                                    val g = buffer.get(offset + 1).toInt() and 0xFF
-                                    val b = buffer.get(offset + 2).toInt() and 0xFF
-                                    val hex = String.format("#%02X%02X%02X", r, g, b)
-                                    
-                                    scope.launch(Dispatchers.Main) {
-                                        currentHex = hex
-                                    }
-                                }
-                                imageProxy.close()
-                            }
+        btnPickColor = ImageView(this).apply {
+            id = View.generateViewId()
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            setImageResource(R.drawable.ic_baseline_camera)
+            setColorFilter(ContextCompat.getColor(this@MainActivity, R.color.colorPrimary))
+        }
+        bottomContainer.addView(btnPickColor)
 
-                            imageCapture = ImageCapture.Builder().build()
+        btnCapture = ImageView(this).apply {
+            id = View.generateViewId()
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            setImageResource(R.drawable.ic_baseline_camera)
+            visibility = View.INVISIBLE
+        }
+        bottomContainer.addView(btnCapture)
 
-                            try {
-                                cameraProvider.unbindAll()
-                                cameraProvider.bindToLifecycle(
-                                    lifecycleOwner,
-                                    cameraSelector,
-                                    preview,
-                                    analyzer,
-                                    imageCapture
-                                )
-                            } catch (e: Exception) {
-                                Log.e("Camera", "Binding failed", e)
-                            }
-                        }, ContextCompat.getMainExecutor(context))
-                    }
-                )
-            }
+        btnChangeCamera = ImageView(this).apply {
+            id = View.generateViewId()
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            setImageResource(R.drawable.ic_baseline_flip_camera)
+            setColorFilter(ContextCompat.getColor(this@MainActivity, R.color.colorPrimary))
+        }
+        bottomContainer.addView(btnChangeCamera)
 
-            if (isImageMode && selectedImageBitmap != null) {
-                ImageDetectorView(
-                    bitmap = selectedImageBitmap!!,
-                    onColorDetected = { hex -> currentHex = hex }
-                )
-                
-                Image(
-                    painter = painterResource(id = R.drawable.ic_baseline_camera_enhance),
-                    contentDescription = "Back to Camera",
-                    modifier = Modifier
-                        .padding(top = 16.dp, start = 16.dp)
-                        .size(32.dp)
-                        .clickable {
-                            isImageMode = false
-                            selectedImageBitmap = null
-                        },
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color(0xFF2196F3))
-                )
-            }
+        val set = ConstraintSet()
+        set.clone(rootLayout)
 
-            Column(modifier = Modifier.fillMaxSize()) {
-                val screenHeight = LocalConfiguration.current.screenHeightDp
-                val guidelineTop = (screenHeight * 0.08).dp
+        set.connect(cameraPreview.id, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
+        set.connect(cameraPreview.id, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+        set.connect(cameraPreview.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+        set.connect(cameraPreview.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(guidelineTop)
-                        .background(Color.White)
-                ) {
-                    Text(
-                        text = "مصطفى عبد القادر محمد عيسى",
-                        color = Color(0xFF2196F3),
-                        fontSize = 18.sp,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                    
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_baseline_done),
-                        contentDescription = "Show Colors",
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .padding(end = 16.dp)
-                            .size(32.dp)
-                            .clickable {
-                                ColorsFragment().show(supportFragmentManager, "ColorsFragment")
-                            },
-                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color(0xFF2196F3))
-                    )
-                }
-                
-                Spacer(modifier = Modifier.weight(1f))
-            }
-            
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(20.dp)
-            ) {
-                 Image(
-                    painter = painterResource(id = R.drawable.pointer),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+        set.connect(layoutTop.id, ConstraintSet.TOP, cameraPreview.id, ConstraintSet.TOP)
+        set.connect(layoutTop.id, ConstraintSet.BOTTOM, guidelineTop.id, ConstraintSet.TOP)
+        set.connect(layoutTop.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+        set.connect(layoutTop.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+        set.constrainHeight(layoutTop.id, 0)
 
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-            ) {
-                Card(
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .padding(bottom = 20.dp)
-                        .width(150.dp)
-                        .height(40.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    elevation = 4.dp
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    ) {
-                        Card(
-                            backgroundColor = Color(android.graphics.Color.parseColor(currentHex)),
-                            shape = CircleShape,
-                            modifier = Modifier.size(24.dp)
-                        ) {}
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = currentHex, color = Color.Black)
-                    }
-                }
+        set.connect(imageView.id, ConstraintSet.TOP, guidelineTop.id, ConstraintSet.BOTTOM)
+        set.connect(imageView.id, ConstraintSet.BOTTOM, guidelineBottom1.id, ConstraintSet.TOP)
+        set.connect(imageView.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+        set.connect(imageView.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+        set.constrainHeight(imageView.id, 0)
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(LocalConfiguration.current.screenHeightDp.dp * 0.2f)
-                        .background(Color.White)
-                ) {
-                    Row(modifier = Modifier.fillMaxSize()) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_plus),
-                            contentDescription = "Add List Color",
-                            modifier = Modifier
-                                .padding(16.dp)
-                                .size(32.dp)
-                                .clickable {
-                                    if (colorList.isNotEmpty()) {
-                                        ColorDialog(
-                                            this@MainActivity,
-                                            colorViewModel,
-                                            com.colour.sniff.adapter.ColorAdapter(this@MainActivity) {}, // Dummy adapter for dialog
-                                            { colorList.clear() }
-                                        ).show()
-                                    }
-                                },
-                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color(0xFF2196F3))
-                        )
+        set.connect(pointer.id, ConstraintSet.TOP, guidelineTop.id, ConstraintSet.BOTTOM)
+        set.connect(pointer.id, ConstraintSet.BOTTOM, guidelineBottom1.id, ConstraintSet.TOP)
+        set.connect(pointer.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+        set.connect(pointer.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+        set.setMargin(pointer.id, ConstraintSet.TOP, dpToPx(10))
+        set.constrainWidth(pointer.id, dpToPx(10))
+        set.constrainHeight(pointer.id, dpToPx(10))
 
-                        LazyRow(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .padding(vertical = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(colorList) { color ->
-                                Card(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clickable {
-                                            ColorDetailDialog(this@MainActivity, color) {
-                                                colorList.remove(it)
-                                            }.show()
-                                        },
-                                    backgroundColor = Color(android.graphics.Color.parseColor(color.hex)),
-                                    shape = CircleShape
-                                ) {}
-                            }
-                        }
-                    }
+        set.connect(cardColorPreview.id, ConstraintSet.BOTTOM, pointer.id, ConstraintSet.TOP)
+        set.connect(cardColorPreview.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+        set.connect(cardColorPreview.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+        set.setMargin(cardColorPreview.id, ConstraintSet.BOTTOM, dpToPx(10))
+        set.constrainWidth(cardColorPreview.id, dpToPx(100))
+        set.constrainHeight(cardColorPreview.id, dpToPx(20))
 
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 16.dp)
-                            .fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_images_outline),
-                            contentDescription = "Pick Image",
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clickable {
-                                    val intent = Intent(Intent.ACTION_PICK).apply { type = "image/*" }
-                                    galleryLauncher.launch(intent)
-                                },
-                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color(0xFF2196F3))
-                        )
+        set.connect(bottomContainer.id, ConstraintSet.TOP, guidelineBottom1.id, ConstraintSet.BOTTOM)
+        set.connect(bottomContainer.id, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+        set.connect(bottomContainer.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+        set.connect(bottomContainer.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+        set.constrainHeight(bottomContainer.id, 0)
+        
+        set.applyTo(rootLayout)
 
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_baseline_camera),
-                            contentDescription = "Pick Color",
-                            modifier = Modifier
-                                .size(64.dp)
-                                .clickable {
-                                    val newColor = UserColor().apply {
-                                        hex = currentHex
-                                        colorDetectHandler.convertRgbToHsl(this)
-                                    }
-                                    colorList.add(0, newColor)
-                                },
-                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color(0xFF2196F3))
-                        )
+        val bottomSet = ConstraintSet()
+        bottomSet.clone(bottomContainer)
+        
+        bottomSet.connect(btnAddListColor.id, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
+        bottomSet.connect(btnAddListColor.id, ConstraintSet.BOTTOM, guidelineBottom2.id, ConstraintSet.TOP)
+        bottomSet.connect(btnAddListColor.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+        bottomSet.setMargin(btnAddListColor.id, ConstraintSet.START, dpToPx(5))
+        bottomSet.setMargin(btnAddListColor.id, ConstraintSet.TOP, dpToPx(10))
+        bottomSet.constrainWidth(btnAddListColor.id, dpToPx(24))
+        bottomSet.constrainHeight(btnAddListColor.id, dpToPx(24))
 
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_baseline_flip_camera),
-                            contentDescription = "Change Camera",
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clickable { isBackCamera = !isBackCamera },
-                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color(0xFF2196F3))
-                        )
-                    }
-                }
-            }
+        bottomSet.connect(rvColor.id, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP)
+        bottomSet.connect(rvColor.id, ConstraintSet.BOTTOM, guidelineBottom2.id, ConstraintSet.TOP)
+        bottomSet.connect(rvColor.id, ConstraintSet.START, btnAddListColor.id, ConstraintSet.END)
+        bottomSet.connect(rvColor.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+        bottomSet.setMargin(rvColor.id, ConstraintSet.START, dpToPx(5))
+        bottomSet.setMargin(rvColor.id, ConstraintSet.TOP, dpToPx(10))
+        bottomSet.constrainHeight(rvColor.id, 0)
+        bottomSet.constrainWidth(rvColor.id, 0)
+
+        bottomSet.connect(btnPickImage.id, ConstraintSet.TOP, guidelineBottom2.id, ConstraintSet.BOTTOM)
+        bottomSet.connect(btnPickImage.id, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+        bottomSet.connect(btnPickImage.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+        bottomSet.connect(btnPickImage.id, ConstraintSet.END, btnPickColor.id, ConstraintSet.START)
+        bottomSet.setHorizontalBias(btnPickImage.id, 0.5f)
+        bottomSet.constrainWidth(btnPickImage.id, dpToPx(24))
+        bottomSet.constrainHeight(btnPickImage.id, dpToPx(24))
+
+        bottomSet.connect(btnPickColor.id, ConstraintSet.TOP, guidelineBottom2.id, ConstraintSet.BOTTOM)
+        bottomSet.connect(btnPickColor.id, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+        bottomSet.connect(btnPickColor.id, ConstraintSet.START, btnPickImage.id, ConstraintSet.END)
+        bottomSet.connect(btnPickColor.id, ConstraintSet.END, btnChangeCamera.id, ConstraintSet.START)
+        bottomSet.setHorizontalBias(btnPickColor.id, 0.5f)
+        bottomSet.constrainWidth(btnPickColor.id, dpToPx(48))
+        bottomSet.constrainHeight(btnPickColor.id, dpToPx(48))
+
+        bottomSet.connect(btnCapture.id, ConstraintSet.TOP, guidelineBottom2.id, ConstraintSet.BOTTOM)
+        bottomSet.connect(btnCapture.id, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+        bottomSet.connect(btnCapture.id, ConstraintSet.START, btnPickImage.id, ConstraintSet.END)
+        bottomSet.connect(btnCapture.id, ConstraintSet.END, btnChangeCamera.id, ConstraintSet.START)
+        bottomSet.constrainWidth(btnCapture.id, dpToPx(24))
+        bottomSet.constrainHeight(btnCapture.id, dpToPx(24))
+
+        bottomSet.connect(btnChangeCamera.id, ConstraintSet.TOP, guidelineBottom2.id, ConstraintSet.BOTTOM)
+        bottomSet.connect(btnChangeCamera.id, ConstraintSet.BOTTOM, ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM)
+        bottomSet.connect(btnChangeCamera.id, ConstraintSet.START, btnPickColor.id, ConstraintSet.END)
+        bottomSet.connect(btnChangeCamera.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+        bottomSet.setHorizontalBias(btnChangeCamera.id, 0.5f)
+        bottomSet.constrainWidth(btnChangeCamera.id, dpToPx(24))
+        bottomSet.constrainHeight(btnChangeCamera.id, dpToPx(24))
+
+        bottomSet.applyTo(bottomContainer)
+    }
+
+    private fun dpToPx(dp: Int): Int {
+        val density = resources.displayMetrics.density
+        return (dp * density).toInt()
+    }
+
+    override fun initControls(savedInstanceState: Bundle?) {
+        cameraExecutor = Executors.newSingleThreadExecutor()
+
+        rvColor.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        rvColor.setHasFixedSize(true)
+        rvColor.adapter = colorAdapter
+
+        if (allPermissionsGranted()) {
+            initCameraProvider()
+        } else {
+            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
     }
 
-    @Composable
-    fun ImageDetectorView(bitmap: Bitmap, onColorDetected: (String) -> Unit) {
-        var pointerOffset by remember { mutableStateOf(Offset.Zero) }
-        val density = LocalDensity.current
-
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val imageWidth = bitmap.width
-            val imageHeight = bitmap.height
-            
-            val screenWidth = maxWidth
-            val screenHeight = maxHeight
-            
-            Image(
-                bitmap = bitmap.asImageBitmap(),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
-            )
-            
-            if (pointerOffset == Offset.Zero) {
-                 pointerOffset = Offset(
-                     with(density) { maxWidth.toPx() / 2 },
-                     with(density) { maxHeight.toPx() / 2 }
-                 )
+    override fun initEvents() {
+        btnPickColor.setOnClickListener {
+            addColor()
+        }
+        btnAddListColor.setOnClickListener {
+            if (currentColorList.isNotEmpty()) {
+                val colorDialog = ColorDialog(this, colorViewModel, colorAdapter, clearColorList)
+                colorDialog.show()
             }
-
-            LaunchedEffect(pointerOffset) {
-                val viewWidth = with(density) { maxWidth.toPx() }
-                val viewHeight = with(density) { maxHeight.toPx() }
-                
-                val scale = minOf(viewWidth / imageWidth, viewHeight / imageHeight)
-                
-                val scaledWidth = imageWidth * scale
-                val scaledHeight = imageHeight * scale
-                
-                val imageOffsetX = (viewWidth - scaledWidth) / 2
-                val imageOffsetY = (viewHeight - scaledHeight) / 2
-                
-                val relativeX = pointerOffset.x - imageOffsetX
-                val relativeY = pointerOffset.y - imageOffsetY
-                
-                if (relativeX in 0f..scaledWidth && relativeY in 0f..scaledHeight) {
-                    val bitmapX = (relativeX / scale).toInt().coerceIn(0, imageWidth - 1)
-                    val bitmapY = (relativeY / scale).toInt().coerceIn(0, imageHeight - 1)
-                    
-                    val pixel = bitmap.getPixel(bitmapX, bitmapY)
-                    val hex = String.format("#%06X", 0xFFFFFF and pixel)
-                    onColorDetected(hex)
-                }
+        }
+        btnChangeCamera.setOnClickListener {
+            if (!isImageShown) {
+                isBackCamera = !isBackCamera
+                cameraSelector = if (isBackCamera) CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
+                bindUseCases()
             }
-
-            Box(
-                modifier = Modifier
-                    .offset { IntOffset(pointerOffset.x.roundToInt() - 25, pointerOffset.y.roundToInt() - 25) }
-                    .size(20.dp) 
-            ) {
-                 // The pointer is drawn by the parent composable normally, 
-                 // but in image mode we might want to make it draggable?
-                 // For now, keeping it static center to match original logic or allowing drag:
+        }
+        btnPickImage.setOnClickListener {
+            pickImageFromGallery()
+        }
+        btnShowCamera.setOnClickListener {
+            if (isImageShown) {
+                btnShowCamera.visibility = View.GONE
+                imageView.visibility = View.GONE
+                isImageShown = false
+                bindUseCases()
             }
+        }
+        layoutTop.setOnClickListener {
+             showBottomSheetFragment()
+        }
+        btnCapture.setOnClickListener {
+            takePictureAndProcess()
         }
     }
 
-    private fun checkPermissions(context: Context): Boolean {
-        return REQUIRED_PERMISSIONS.all {
-            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-        }
+    private fun initCameraProvider() {
+        val providerFuture = ProcessCameraProvider.getInstance(this)
+        providerFuture.addListener({
+            try {
+                cameraProvider = providerFuture.get()
+                bindUseCases()
+            } catch (e: Exception) {
+                Log.e(TAG, "Camera provider initialization failed", e)
+            }
+        }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun decodeUriToBitmap(context: Context, uri: Uri): Bitmap? {
-        return try {
-            val inputStream = context.contentResolver.openInputStream(uri)
-            BitmapFactory.decodeStream(inputStream)
+    private fun bindUseCases() {
+        val provider = cameraProvider ?: return
+        try {
+            provider.unbindAll()
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w(TAG, "unbindAll failed", e)
+        }
+
+        val preview = Preview.Builder().build()
+        imageCapture = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build()
+
+        val analyzerBuilder = ImageAnalysis.Builder()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+
+        if (Build.VERSION.SDK_INT >= 23) {
+            analyzerBuilder.setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+        }
+
+        val analyzer = analyzerBuilder.build()
+
+        analyzer.setAnalyzer(cameraExecutor) { imageProxy ->
+            processImageProxy(imageProxy)
+        }
+
+        imageAnalyzerUseCase = analyzer
+
+        preview.setSurfaceProvider(cameraPreview.surfaceProvider)
+
+        try {
+            provider.bindToLifecycle(this, cameraSelector, preview, imageCapture, analyzer)
+        } catch (exc: Exception) {
+            Log.e(TAG, "Use case binding failed", exc)
+        }
+    }
+
+    private fun processImageProxy(imageProxy: ImageProxy) {
+        try {
+            if (imageProxy.format == android.graphics.ImageFormat.YUV_420_888) {
+                val bitmap = imageProxyToBitmap(imageProxy)
+                if (bitmap != null) {
+                    processBitmapCenter(bitmap)
+                }
+            } else {
+                val planes = imageProxy.planes
+                val buffer = planes[0].buffer
+                val pixelStride = planes[0].pixelStride
+                val rowStride = planes[0].rowStride
+                val rowPadding = rowStride - pixelStride * imageProxy.width
+                
+                val width = imageProxy.width
+                val height = imageProxy.height
+                
+                val centerX = width / 2
+                val centerY = height / 2
+                
+                val offset = (centerY * rowStride) + (centerX * pixelStride)
+                
+                if (offset + 3 < buffer.capacity()) {
+                     val r = buffer.get(offset).toInt() and 0xFF
+                     val g = buffer.get(offset + 1).toInt() and 0xFF
+                     val b = buffer.get(offset + 2).toInt() and 0xFF
+                     val a = buffer.get(offset + 3).toInt() and 0xFF
+                     
+                     val color = Color.argb(a, r, g, b)
+                     val hex = String.format("#%06X", 0xFFFFFF and color)
+                     
+                     updateColorUI(hex)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error analyzing image", e)
+        } finally {
+            imageProxy.close()
+        }
+    }
+    
+    private fun updateColorUI(hex: String) {
+         currentColor.hex = hex
+         runOnUiThread {
+             txtHex.text = currentColor.hex
+             cardColor.setCardBackgroundColor(Color.parseColor(currentColor.hex))
+         }
+    }
+
+    private fun processBitmapCenter(bitmap: Bitmap) {
+         try {
+            val pointerX = (pointer.x + pointer.width / 2f).toInt().coerceIn(0, bitmap.width - 1)
+            val pointerY = (pointer.y + pointer.height / 2f).toInt().coerceIn(0, bitmap.height - 1)
+            val sampledColor = bitmap.getPixel(pointerX, pointerY)
+            val hex = String.format("#%06X", 0xFFFFFF and sampledColor)
+            updateColorUI(hex)
+        } catch (ex: Exception) {
+            Log.w(TAG, "frame sampling failed", ex)
+        }
+    }
+
+    private fun imageProxyToBitmap(image: ImageProxy): Bitmap? {
+        return try {
+            val yBuffer = image.planes[0].buffer
+            val uBuffer = image.planes[1].buffer
+            val vBuffer = image.planes[2].buffer
+            val ySize = yBuffer.remaining()
+            val uSize = uBuffer.remaining()
+            val vSize = vBuffer.remaining()
+            val nv21 = ByteArray(ySize + uSize + vSize)
+            yBuffer.get(nv21, 0, ySize)
+            vBuffer.get(nv21, ySize, vSize)
+            uBuffer.get(nv21, ySize + vSize, uSize)
+            val yuvImage = android.graphics.YuvImage(nv21, android.graphics.ImageFormat.NV21, image.width, image.height, null)
+            val out = java.io.ByteArrayOutputStream()
+            yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 90, out)
+            val bytes = out.toByteArray()
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        } catch (e: Exception) {
+            Log.w(TAG, "imageProxyToBitmap failed", e)
             null
         }
     }
 
-    companion object {
-        private val REQUIRED_PERMISSIONS = mutableListOf<String>().apply {
-            add(Manifest.permission.CAMERA)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.READ_MEDIA_IMAGES)
-            else add(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }.toTypedArray()
+    private fun takePictureAndProcess() {
+        val capture = imageCapture ?: return
+        capture.takePicture(ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageCapturedCallback() {
+            override fun onCaptureSuccess(imageProxy: ImageProxy) {
+                if(imageProxy.format == android.graphics.ImageFormat.JPEG) {
+                     val buffer = imageProxy.planes[0].buffer
+                     val bytes = ByteArray(buffer.remaining())
+                     buffer.get(bytes)
+                     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                     processCapturedBitmap(bitmap)
+                } else {
+                     val bitmap = imageProxyToBitmap(imageProxy)
+                     if(bitmap != null) processCapturedBitmap(bitmap)
+                }
+                imageProxy.close()
+            }
+            override fun onError(exception: ImageCaptureException) {
+                Log.e(TAG, "Image capture failed", exception)
+            }
+        })
+    }
+    
+    private fun processCapturedBitmap(bitmap: Bitmap) {
+        CoroutineScope(Dispatchers.Default).launch {
+            val centerX = bitmap.width / 2
+            val centerY = bitmap.height / 2
+            val sampledBitmap = Bitmap.createBitmap(bitmap, centerX, centerY, 1, 1)
+            val colorInt = sampledBitmap.getPixel(0, 0)
+            currentColor.hex = String.format("#%06X", 0xFFFFFF and colorInt)
+            colorDetectHandler.convertRgbToHsl(currentColor)
+            withContext(Dispatchers.Main) {
+                txtHex.text = currentColor.hex
+                cardColor.setCardBackgroundColor(Color.parseColor(currentColor.hex))
+                currentColorList.add(0, currentColor)
+                colorAdapter.notifyData(currentColorList)
+            }
+        }
+    }
+
+    private fun pickImageFromGallery() {
+        val intent = Intent(Intent.ACTION_PICK)
+        intent.type = "image/*"
+        startActivityForResult(intent, REQUEST_CODE)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode == android.app.Activity.RESULT_OK && requestCode == REQUEST_CODE) {
+            if (!isImageShown) {
+                imageView.visibility = View.VISIBLE
+                btnShowCamera.visibility = View.VISIBLE
+                isImageShown = true
+            }
+            if (data?.data != null) {
+                val uri = data.data!!
+                imageView.setImageURI(uri)
+                val bitmap = decodeUriToBitmap(uri)
+                if(bitmap != null) startDetectColorFromImage(bitmap)
+            }
+        }
+    }
+
+    private fun startDetectColorFromImage(bitmap: Bitmap) {
+        cameraProvider?.unbindAll()
+        timerTask?.cancel()
+        setPointerCoordinates(imageView.width / 2f, imageView.height / 2f)
+        var isFitHorizontally = true
+        var marginTop: Float = layoutTop.height.toFloat()
+        var marginLeft = 0f
+        val ratio = if (bitmap.width >= bitmap.height) {
+            bitmap.width / (imageView.width * 1.0f)
+        } else {
+            isFitHorizontally = false
+            bitmap.height / (imageView.height * 1.0f)
+        }
+        if (isFitHorizontally) {
+            marginTop += (imageView.height - bitmap.height / ratio) / 2
+        } else {
+            marginLeft += (imageView.width - bitmap.width / ratio) / 2
+        }
+        
+        timerTask = CoroutineScope(Dispatchers.Default).launch {
+             while(true) {
+                try {
+                     currentColor = colorDetectHandler.detect(bitmap, pointer, marginTop, marginLeft, ratio)
+                     Log.d(TAG, "Color : ${currentColor.hex}")
+                     withContext(Dispatchers.Main) {
+                        txtHex.text = currentColor.hex
+                        cardColor.setCardBackgroundColor(Color.parseColor(currentColor.hex))
+                     }
+                } catch(e: Exception) {
+                    Log.e(TAG, "Error detecting from image", e)
+                }
+                delay(1000) 
+             }
+        }
+    }
+
+    private fun setPointerCoordinates(x: Float, y: Float) {
+        pointer.x = x
+        pointer.y = y
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CODE_PERMISSIONS) {
+            if (allPermissionsGranted()) {
+                initCameraProvider()
+            } else {
+                Toast.makeText(this, "Permissions not granted by the user.", Toast.LENGTH_SHORT).show()
+                finish()
+            }
+        }
+    }
+
+    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
+        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun addColor() {
+        try {
+            Color.parseColor(currentColor.hex)
+            colorDetectHandler.convertRgbToHsl(currentColor)
+            currentColorList.add(0, currentColor)
+            colorAdapter.notifyData(currentColorList)
+        } catch (e: IllegalArgumentException) {
+            Toast.makeText(this, resources.getString(R.string.unknown_color), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val clearColorList: () -> Unit = {
+        currentColorList.clear()
+        colorAdapter.notifyData(currentColorList)
+    }
+
+    private fun showBottomSheetFragment() {
+        colorsFragment.show(supportFragmentManager, colorsFragment.tag)
+    }
+
+    private val removeColorInList: (UserColor) -> Unit = {
+        currentColorList.remove(it)
+        colorAdapter.notifyData(currentColorList)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        timerTask?.cancel()
+        try {
+            cameraProvider?.unbindAll()
+        } catch (e: Exception) {
+            Log.w(TAG, "unbindAll onDestroy failed", e)
+        }
+        cameraExecutor.shutdown()
+    }
+
+    private fun decodeUriToBitmap(uri: Uri): Bitmap? = try {
+        val inputStream = contentResolver.openInputStream(uri)
+        val bmp = BitmapFactory.decodeStream(inputStream)
+        inputStream?.close()
+        bmp
+    } catch (e: Exception) {
+        e.printStackTrace()
+        (imageView.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
     }
 }
